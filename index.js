@@ -1,12 +1,12 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 
 const app = express();
 app.use(bodyParser.json());
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
@@ -21,17 +21,20 @@ app.post('/webhook', async (req, res) => {
       const psid = entry.messaging[0].sender.id;
       const msg = entry.messaging[0].message;
       if (!msg) continue;
-      let userText = msg.text || "Hola";
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        let prompt = `Eres el asistente de Juancho Sneakers, tienda de tenis en Pereira, Colombia. Eres amable, casual, usas emojis, respuestas cortas. Cliente dice: ${userText}`;
-        const result = await model.generateContent(prompt);
-        const reply = result.response.text();
+        const completion = await groq.chat.completions.create({
+          model: "openai/gpt-oss-20b",
+          messages: [
+            { role: "system", content: "Eres el asistente de Juancho Sneakers, tienda de tenis en Pereira, Colombia. Responde amable, casual, corto, con emojis." },
+            { role: "user", content: msg.text || "Hola" }
+          ]
+        });
+        const reply = completion.choices[0].message.content;
         await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
           recipient: { id: psid }, message: { text: reply }
         });
       } catch (e) {
-        console.error("Error bot:", e.message);
+        console.error("Error bot:", e.status, e.error?.error?.message || e.message);
       }
     }
     res.status(200).send('EVENT_RECEIVED');
