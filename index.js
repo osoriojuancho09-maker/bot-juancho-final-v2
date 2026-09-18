@@ -24,36 +24,32 @@ app.post('/webhook', async (req, res) => {
     for (const entry of body.entry) {
       const webhook_event = entry.messaging[0];
       const sender_psid = webhook_event.sender.id;
-
       if (webhook_event.message) {
         let userMessage = webhook_event.message.text || "";
         let imageUrl = null;
-
         if (webhook_event.message.attachments) {
-          const attachment = webhook_event.message.attachments[0];
-          if (attachment.type === 'image') {
-            imageUrl = attachment.payload.url;
+          if (webhook_event.message.attachments[0].type === 'image') {
+            imageUrl = webhook_event.message.attachments[0].payload.url;
           }
         }
-
         try {
           let groqResponse;
           if (imageUrl) {
             groqResponse = await groq.chat.completions.create({
-              model: "meta-llama/llama-4-scout-17b-16e-instruct",
+              model: "llama-3.2-11b-vision-preview",
               messages: [
-                { role: "system", content: "Eres el asistente de Juancho Sneakers, tienda de zapatillas en Pereira. Amable, casual, usas emojis. Ayudas con tallas, modelos, precios." },
+                { role: "system", content: "Eres asistente de Juancho Sneakers, tienda de tenis en Pereira. Amable, casual." },
                 { role: "user", content: [
-                  { type: "text", text: userMessage || "Que tenis son estos?" },
+                  { type: "text", text: userMessage || "Que tenis son?" },
                   { type: "image_url", image_url: { url: imageUrl } }
                 ]}
               ],
             });
           } else {
             groqResponse = await groq.chat.completions.create({
-              model: "llama-3.1-8b-instant",
+              model: "llama3-8b-8192",
               messages: [
-                { role: "system", content: "Eres el asistente de Juancho Sneakers, tienda de zapatillas en Pereira. Amable, casual, respuestas cortas con emojis." },
+                { role: "system", content: "Eres asistente de Juancho Sneakers, tienda de tenis en Pereira. Amable, casual, respuestas cortas." },
                 { role: "user", content: userMessage }
               ],
             });
@@ -63,9 +59,8 @@ app.post('/webhook', async (req, res) => {
             recipient: { id: sender_psid },
             message: { text: respuesta }
           });
-
         } catch (error) {
-          console.error("Error bot:", error.message);
+          console.error("Error bot:", error.status, error.error?.error?.message || error.message);
           await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
             recipient: { id: sender_psid },
             message: { text: "Uy, tuve un error, ¿me mandas de nuevo porfa? 🙏" }
